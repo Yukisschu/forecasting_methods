@@ -548,6 +548,88 @@ def holt_winters_multiplicative_forecast(y, S, alpha, beta, gamma):
     return yhat, L_t, G_t, H_t
 
 
+def estimate_alpha_beta_gamma_seasonal_hw(y, S, multiplicative=False, criterion="SSE", grid_n=31, eps=1e-2):
+    """
+    Expanding-window Seasonal Holt–Winters with re-estimated (alpha,beta,gamma) at each step.
+
+    Returns
+    -------
+    alpha_t, beta_t, gamma_t : np.ndarray
+        Parameter chosen for each time t (NaN where undefined).
+    yhat_t : np.ndarray
+        One-step-ahead forecast series (NaN where undefined).
+    u_t : np.ndarray
+        One-step-ahead errors y - yhat (NaN where undefined).
+    loss_t : np.ndarray
+        Best loss at each time.
+    """
+    y = np.asarray(y, dtype=float)
+    T = len(y)
+
+    grid = np.linspace(eps, 1.0 - eps, grid_n)
+
+    alpha_t = np.full(T, np.nan)
+    beta_t  = np.full(T, np.nan)
+    gamma_t = np.full(T, np.nan)
+    yhat_t  = np.full(T, np.nan)
+    u_t     = np.full(T, np.nan)
+    loss_t  = np.full(T, np.nan)
+
+    # Need at least 2 full seasons for _hw_init in helper.py => len(y_sub) >= 2S
+    # And need t >= 2S to forecast index t (since y_sub length = t)
+    for t in range(2 * S, T):
+        y_sub = y[:t]  # history up to t-1, used to forecast y[t]
+
+        best_a = best_b = best_g = None
+        best_loss = np.inf
+
+        for a in grid:
+            for b in grid:
+                for g in grid:
+                    if multiplicative:
+                        F, _, _, _ = holt_winters_multiplicative_forecast(y_sub, S, a, b, g)
+                    else:
+                        F, _, _, _ = holt_winters_additive_forecast(y_sub, S, a, b, g)
+
+                    # evaluate fitted one-step-ahead residuals inside y_sub
+                    idx = np.arange(S, len(y_sub))
+                    resid = y_sub[idx] - F[idx]
+
+                    if criterion == "ME":
+                        loss = float(np.mean(resid))
+                    elif criterion == "MAE":
+                        loss = float(np.mean(np.abs(resid)))
+                    elif criterion == "MAPE":
+                        denom = np.where(y_sub[idx] == 0, np.nan, np.abs(y_sub[idx]))
+                        loss = float(np.nanmean(100.0 * np.abs(resid) / denom))
+                    elif criterion == "MSE":
+                        loss = float(np.mean(resid ** 2))
+                    elif criterion == "SSE":
+                        loss = float(np.sum(resid ** 2))
+                    else:
+                        raise ValueError("criterion must be one of: 'ME','MAE','MAPE','MSE','SSE'")
+
+                    if loss < best_loss:
+                        best_loss = loss
+                        best_a, best_b, best_g = a, b, g
+
+        # forecast y[t] using best params fitted on y[:t]
+        if multiplicative:
+            F_best, _, _, _ = holt_winters_multiplicative_forecast(y_sub, S, best_a, best_b, best_g)
+        else:
+            F_best, _, _, _ = holt_winters_additive_forecast(y_sub, S, best_a, best_b, best_g)
+
+        # one-step-ahead forecast for index t is the last fitted forecast in y_sub
+        yhat_t[t] = F_best[-1]
+        u_t[t] = y[t] - yhat_t[t]
+
+        alpha_t[t] = float(best_a)
+        beta_t[t]  = float(best_b)
+        gamma_t[t] = float(best_g)
+        loss_t[t]  = float(best_loss)
+
+    return alpha_t, beta_t, gamma_t, yhat_t, u_t, loss_t
+
 
 # =============================
 # Errors and evaluation metrics
