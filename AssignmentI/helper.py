@@ -61,15 +61,6 @@ def exp_smoothing_forecast(y, alpha):
     return es                             # Return forecast series
 
 
-def exp_smoothing_forecast_errors(y, alpha):
-    """Exponential smoothing forecasts and errors."""
-    yhat = exp_smoothing_forecast(y, alpha)  # Compute forecasts
-    u = np.empty_like(yhat)               # Allocate error array
-    u[0] = np.nan                         # Error undefined at first index
-    u[1:] = y[1:] - yhat[1:]              # Compute forecast errors
-    return yhat, u                        # Return forecasts and errors
-
-
 def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps=1e-4):
     """
     Expanding-window exponential smoothing with re-estimated alpha at each step.
@@ -104,7 +95,8 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
         best_val = np.inf
 
         for a in alphas:
-            yhat_sub, u_sub = exp_smoothing_forecast_errors(y_sub, a)
+            yhat_sub = exp_smoothing_forecast(y_sub, a)
+            u_sub = forecast_errors(y_sub, yhat_sub)
             m = forecast_metrics(u_sub, y_sub, tau=2)
 
             if criterion == "ME":
@@ -135,7 +127,6 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
 # =============================
 # Trend / regression-based
 # =============================
-
 def ar1_expanding_ols_forecast(y):
     """AR(1) expanding-window OLS one-step-ahead forecast."""
     ar1 = np.empty_like(y, dtype=float)   # Allocate forecast array
@@ -144,7 +135,7 @@ def ar1_expanding_ols_forecast(y):
     for t in range(2, len(y)):            # Start when enough data exists
         y_dep = y[1:t]                    # Dependent variable
         x_lag = y[0:t-1]                  # Lagged regressor
-        X = np.column_stack([np.ones_like(x_lag), x_lag])  # Design matrix
+        X = np.column_stack([np.ones_like(x_lag), x_lag])  # Design matrix with intercept
         beta, _, _, _ = np.linalg.lstsq(X, y_dep, rcond=None)  # OLS
         c_hat, phi_hat = beta             # Extract coefficients
         ar1[t] = c_hat + phi_hat * y[t - 1]  # Forecast
@@ -166,7 +157,7 @@ def running_trend_forecast(y):
         j = np.arange(1, n + 1)           # Time index
         y_past = y[:n]                    # Past observations
 
-        j_bar = j.mean()                  # Mean of time index
+        j_bar = j.mean()                  # Mean of time index 
         y_bar = y_past.mean()             # Mean of data
 
         denom = np.sum((j - j_bar) ** 2)  # Denominator for slope
@@ -245,6 +236,7 @@ def holt_observation_weights(alpha, beta, max_lag=40, burn=200):
         y = np.zeros(T)
         y[(t - 1) - k] = 1.0  # impulse at Y_{t-1-k}
         weights[k] = holt_forecast_from_series(y, alpha, beta)  # forecast for time t
+    
     return weights
 
 
