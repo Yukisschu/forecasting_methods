@@ -61,6 +61,79 @@ def exp_smoothing_forecast(y, alpha):
     return es                             # Return forecast series
 
 
+# def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps=1e-4):
+#     """
+#     Expanding-window exponential smoothing with re-estimated alpha at each step.
+
+#     For each t (starting at 2), use data y[:t] to grid-search alpha that minimizes the
+#     chosen criterion over one-step-ahead forecasts within that subsample, then produce
+#     a single one-step-ahead forecast for time t (i.e., forecast of y[t] using y[:t]).
+
+#     Returns
+#     -------
+#     alpha_t : np.ndarray
+#         Chosen alpha for each time index (NaN where not defined).
+#     yhat_t : np.ndarray
+#         One-step-ahead forecast series (NaN where not defined).
+#     u_t : np.ndarray
+#         One-step-ahead forecast errors y - yhat (NaN where not defined).
+#     """
+#     y = np.asarray(y, dtype=float)
+#     T = len(y)
+
+#     alphas = np.linspace(eps, 1.0, grid_size)
+
+#     alpha_t = np.full(T, np.nan)
+#     yhat_t = np.full(T, np.nan)
+#     u_t = np.full(T, np.nan)
+
+#     # Need at least 2 points to define one-step-ahead errors in this convention
+#     for t in range(2, T):
+#         y_sub = y[:t]  
+
+#         best_alpha = None
+#         best_val = np.inf
+
+#         for a in alphas:
+#             yhat_sub = exp_smoothing_forecast(y_sub, a)
+#             u_sub = forecast_errors(y_sub, yhat_sub)
+#             m = forecast_metrics(u_sub, y_sub, tau=2)
+
+#             if criterion == "ME":
+#                 val = m["ME"]
+#             elif criterion == "MAE":
+#                 val = m["MAE"]
+#             elif criterion == "MAPE":
+#                 val = m["MAPE"]
+#             elif criterion == "MSE":
+#                 val = m["MSE"]
+#             else:
+#                 raise ValueError("criterion must be one of: 'ME', 'MAE', 'MAPE', 'MSE'")
+
+#             if val < best_val:
+#                 best_val = val
+#                 best_alpha = a
+
+#         # Forecast y[t] using the best alpha estimated from y[:t]
+#         yhat_sub_best = exp_smoothing_forecast(y_sub, best_alpha)
+
+#         yhat_next = best_alpha * y_sub[-1] + \
+#             (1 - best_alpha) * yhat_sub_best[-1]
+        
+#         print(
+#             f"t={t}, best alpha={best_alpha:.4f}, "
+#             f"y_sub={y_sub}, "
+#             f"yhat_sub_best={yhat_sub_best}"
+#         )
+
+#         yhat_t[t] = yhat_next          # one-step-ahead forecast for index t
+#         alpha_t[t] = best_alpha                # store chosen alpha
+#         u_t[t] = y[t] - yhat_t[t]              # realized one-step-ahead error
+
+#     return alpha_t, yhat_t, u_t
+
+
+
 def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps=1e-4):
     """
     Expanding-window exponential smoothing with re-estimated alpha at each step.
@@ -89,7 +162,7 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
 
     # Need at least 2 points to define one-step-ahead errors in this convention
     for t in range(2, T):
-        y_sub = y[:t]  # data available up to time t-1 (since we forecast y[t])
+        y_sub = y[:t+1]  
 
         best_alpha = None
         best_val = np.inf
@@ -116,6 +189,13 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
 
         # Forecast y[t] using the best alpha estimated from y[:t]
         yhat_sub_best = exp_smoothing_forecast(y_sub, best_alpha)
+        
+        # print(
+        #     f"t={t}, best alpha={best_alpha:.4f}, "
+        #     f"y_sub={y_sub}, "
+        #     f"yhat_sub_best={yhat_sub_best}"
+        # )
+
         yhat_t[t] = yhat_sub_best[-1]          # one-step-ahead forecast for index t
         alpha_t[t] = best_alpha                # store chosen alpha
         u_t[t] = y[t] - yhat_t[t]              # realized one-step-ahead error
@@ -293,7 +373,7 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
     # Need enough data to initialize Holt inside holt_fitted_forecast_series (uses y[0] and y[1])
     # and to produce a one-step-ahead forecast for index t (so t must be at least 2).
     for t in range(2, T):
-        y_sub = y[:t]  # available history to estimate params for forecasting y[t]
+        y_sub = y[:t+1]  
 
         best_alpha = None
         best_beta = None
@@ -401,53 +481,114 @@ def seasonal_random_walk_with_drift_forecast(y, S):
 #    with sum gamma_j = 0  (use S-1 dummies, last is baseline)
 # ============================================================
 
+# def running_seasonal_regression_forecast(y, S):
+#     """
+#     Expanding-window OLS with linear trend and seasonal dummies (S-1 to avoid collinearity).
+
+#     Uses t = 1..T time index and season = (t-1) mod S.
+#     One-step-ahead forecast at time t uses data up to t-1.
+#     """
+#     y = np.asarray(y, dtype=float)
+#     T = len(y)
+
+#     yhat = np.full(T, np.nan)
+#     a_hat = np.full(T, np.nan)   # intercept mu estimate
+#     b_hat = np.full(T, np.nan)   # slope beta estimate
+#     g_hat = np.full((T, S), np.nan)  # seasonal effects (full S; last reconstructed)
+
+#     # Need at least S+1 points to estimate trend + seasonal dummies in a stable way
+#     for t in range(S + 1, T):
+#         y_past = y[:t]                           # y[0..t-1]
+#         tpast = np.arange(1, t + 1, dtype=float) # 1..t
+
+#         # Build seasonal dummy matrix for S-1 seasons (last season is baseline)
+#         season_idx = (np.arange(t) % S)          # 0..S-1
+#         D = np.zeros((t, S - 1), dtype=float)
+#         for j in range(S - 1):
+#             D[:, j] = (season_idx == j).astype(float)
+
+#         # X = [1, t, D1..D_{S-1}]
+#         X = np.column_stack([np.ones(t), tpast, D])
+
+#         beta, _, _, _ = np.linalg.lstsq(X, y_past, rcond=None)
+
+#         mu = beta[0]
+#         b = beta[1]
+#         gam = beta[2:]                           # length S-1
+
+#         # Reconstruct full seasonal effects with sum-to-zero constraint
+#         full_g = np.zeros(S, dtype=float)
+#         full_g[:S - 1] = gam
+#         full_g[S - 1] = -np.sum(gam)
+
+#         a_hat[t] = mu
+#         b_hat[t] = b
+#         g_hat[t, :] = full_g
+
+#         t_next = t + 1                           # next time index in 1-based scale
+#         season_next = (t % S)                    # season for time t_next (0-based)
+#         yhat[t] = mu + b * t_next + full_g[season_next]
+
+#     return yhat, a_hat, b_hat, g_hat
+
+
+
+
 def running_seasonal_regression_forecast(y, S):
     """
-    Expanding-window OLS with linear trend and seasonal dummies (S-1 to avoid collinearity).
+    Running Seasonal Regression using:
+        δ̂_J = (Σ x x')^{-1} (Σ x y)
 
-    Uses t = 1..T time index and season = (t-1) mod S.
-    One-step-ahead forecast at time t uses data up to t-1.
+    x_t' = (1, t, dummies) where:
+      - if season in 0..S-2: dummy one-hot
+      - if season == S-1 (last): dummy all -1
     """
     y = np.asarray(y, dtype=float)
     T = len(y)
 
+    k = S + 1  # parameters: mu, beta, gamma_1..gamma_{S-1}
     yhat = np.full(T, np.nan)
-    a_hat = np.full(T, np.nan)   # intercept mu estimate
-    b_hat = np.full(T, np.nan)   # slope beta estimate
-    g_hat = np.full((T, S), np.nan)  # seasonal effects (full S; last reconstructed)
+    a_hat = np.full(T, np.nan)
+    b_hat = np.full(T, np.nan)
+    g_hat = np.full((T, S), np.nan)
 
-    # Need at least S+1 points to estimate trend + seasonal dummies in a stable way
-    for t in range(S + 1, T):
-        y_past = y[:t]                           # y[0..t-1]
-        tpast = np.arange(1, t + 1, dtype=float) # 1..t
+    def x_vec(t_index_0based):
+        t1 = float(t_index_0based + 1)       # 1-based time
+        season = t_index_0based % S          # 0..S-1
+        d = np.zeros(S - 1, dtype=float)
+        if season == S - 1:
+            d[:] = -1.0                      # last season encoding 
+        else:
+            d[season] = 1.0                  # one-hot
+        return np.concatenate(([1.0, t1], d))
 
-        # Build seasonal dummy matrix for S-1 seasons (last season is baseline)
-        season_idx = (np.arange(t) % S)          # 0..S-1
-        D = np.zeros((t, S - 1), dtype=float)
-        for j in range(S - 1):
-            D[:, j] = (season_idx == j).astype(float)
+    # Accumulators: A = Σ x x', b = Σ x y
+    A = np.zeros((k, k), dtype=float)
+    b = np.zeros(k, dtype=float)
 
-        # X = [1, t, D1..D_{S-1}]
-        X = np.column_stack([np.ones(t), tpast, D])
+    # We need at least k observations to invert A stably.
+    # We'll start forecasts at t = k (0-based), i.e., using data up to t-1.
+    # (This matches your "S+1" idea: k = S+1)
+    for t in range(T):
+        # Forecast y[t] using δ̂ built from past data (0..t-1)
+        if t >= k and np.linalg.matrix_rank(A) == k:
+            delta = np.linalg.solve(A, b)  # δ̂_{t-1}
+            yhat[t] = x_vec(t) @ delta
 
-        beta, _, _, _ = np.linalg.lstsq(X, y_past, rcond=None)
+            mu = delta[0]
+            beta = delta[1]
+            gam = delta[2:]  # length S-1
+            full_g = np.zeros(S, dtype=float)
+            full_g[:S-1] = gam
+            full_g[S-1] = -np.sum(gam)
+            a_hat[t] = mu
+            b_hat[t] = beta
+            g_hat[t, :] = full_g
 
-        mu = beta[0]
-        b = beta[1]
-        gam = beta[2:]                           # length S-1
-
-        # Reconstruct full seasonal effects with sum-to-zero constraint
-        full_g = np.zeros(S, dtype=float)
-        full_g[:S - 1] = gam
-        full_g[S - 1] = -np.sum(gam)
-
-        a_hat[t] = mu
-        b_hat[t] = b
-        g_hat[t, :] = full_g
-
-        t_next = t + 1                           # next time index in 1-based scale
-        season_next = (t % S)                    # season for time t_next (0-based)
-        yhat[t] = mu + b * t_next + full_g[season_next]
+        # Now incorporate current observation into A,b for future steps
+        x = x_vec(t)
+        A += np.outer(x, x)
+        b += x * y[t]
 
     return yhat, a_hat, b_hat, g_hat
 
