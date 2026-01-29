@@ -134,35 +134,88 @@ def exp_smoothing_forecast(y, alpha):
 
 
 
+# def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps=1e-4):
+#     """
+#     Expanding-window exponential smoothing with re-estimated alpha at each step.
+
+#     For each t (starting at 2), use data y[:t] to grid-search alpha that minimizes the
+#     chosen criterion over one-step-ahead forecasts within that subsample, then produce
+#     a single one-step-ahead forecast for time t (i.e., forecast of y[t] using y[:t]).
+
+#     Returns
+#     -------
+#     alpha_t : np.ndarray
+#         Chosen alpha for each time index (NaN where not defined).
+#     yhat_t : np.ndarray
+#         One-step-ahead forecast series (NaN where not defined).
+#     u_t : np.ndarray
+#         One-step-ahead forecast errors y - yhat (NaN where not defined).
+#     """
+#     y = np.asarray(y, dtype=float)
+#     T = len(y)
+
+#     alphas = np.linspace(eps, 1.0, grid_size)
+
+#     alpha_t = np.full(T, np.nan)
+#     yhat_t = np.full(T, np.nan)
+#     u_t = np.full(T, np.nan)
+
+#     # Need at least 2 points to define one-step-ahead errors in this convention
+#     for t in range(2, T):
+#         y_sub = y[:t+1]  
+
+#         best_alpha = None
+#         best_val = np.inf
+
+#         for a in alphas:
+#             yhat_sub = exp_smoothing_forecast(y_sub, a)
+#             u_sub = forecast_errors(y_sub, yhat_sub)
+#             m = forecast_metrics(u_sub, y_sub, tau=2)
+
+#             if criterion == "ME":
+#                 val = m["ME"]
+#             elif criterion == "MAE":
+#                 val = m["MAE"]
+#             elif criterion == "MAPE":
+#                 val = m["MAPE"]
+#             elif criterion == "MSE":
+#                 val = m["MSE"]
+#             else:
+#                 raise ValueError("criterion must be one of: 'ME', 'MAE', 'MAPE', 'MSE'")
+
+#             if val < best_val:
+#                 best_val = val
+#                 best_alpha = a
+
+#         # Forecast y[t] using the best alpha estimated from y[:t]
+#         yhat_sub_best = exp_smoothing_forecast(y_sub, best_alpha)
+        
+#         # print(
+#         #     f"t={t}, best alpha={best_alpha:.4f}, "
+#         #     f"y_sub={y_sub}, "
+#         #     f"yhat_sub_best={yhat_sub_best}"
+#         # )
+
+#         yhat_t[t] = yhat_sub_best[-1]          # one-step-ahead forecast for index t
+#         alpha_t[t] = best_alpha                # store chosen alpha
+#         u_t[t] = y[t] - yhat_t[t]              # realized one-step-ahead error
+
+#     return alpha_t, yhat_t, u_t
+
+
 def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps=1e-4):
-    """
-    Expanding-window exponential smoothing with re-estimated alpha at each step.
-
-    For each t (starting at 2), use data y[:t] to grid-search alpha that minimizes the
-    chosen criterion over one-step-ahead forecasts within that subsample, then produce
-    a single one-step-ahead forecast for time t (i.e., forecast of y[t] using y[:t]).
-
-    Returns
-    -------
-    alpha_t : np.ndarray
-        Chosen alpha for each time index (NaN where not defined).
-    yhat_t : np.ndarray
-        One-step-ahead forecast series (NaN where not defined).
-    u_t : np.ndarray
-        One-step-ahead forecast errors y - yhat (NaN where not defined).
-    """
     y = np.asarray(y, dtype=float)
     T = len(y)
 
     alphas = np.linspace(eps, 1.0, grid_size)
 
-    alpha_t = np.full(T, np.nan)
-    yhat_t = np.full(T, np.nan)
-    u_t = np.full(T, np.nan)
+    alpha_t = np.full(T, np.nan)  # store alpha used to forecast y[t]
+    yhat_t  = np.full(T, np.nan)  # yhat_t[t] forecasts y[t]
+    u_t     = np.full(T, np.nan)  # u_t[t] = y[t] - yhat_t[t]
 
-    # Need at least 2 points to define one-step-ahead errors in this convention
-    for t in range(2, T):
-        y_sub = y[:t+1]  
+    # At time t, estimate alpha from y[:t+1], then forecast y[t+1]
+    for t in range(2, T - 1):   
+        y_sub = y[:t+1]         # data available up to time t
 
         best_alpha = None
         best_val = np.inf
@@ -187,21 +240,21 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
                 best_val = val
                 best_alpha = a
 
-        # Forecast y[t] using the best alpha estimated from y[:t]
-        yhat_sub_best = exp_smoothing_forecast(y_sub, best_alpha)
-        
+        # Now forecast y[t+1] using alpha estimated from y[:t+1]
+        y_sub_t = y[:t+2]  # exclude y[t+2] 
+        yhat_sub_best = exp_smoothing_forecast(y_sub_t, best_alpha)
+
         # print(
-        #     f"t={t}, best alpha={best_alpha:.4f}, "
-        #     f"y_sub={y_sub}, "
-        #     f"yhat_sub_best={yhat_sub_best}"
+        #     f"# ={t+1:3d} | "
+        #     f"len(y_sub)={len(y_sub):3d} | "
+        #     f"len(yhat_sub)={len(yhat_sub_best):3d} | "
         # )
 
-        yhat_t[t] = yhat_sub_best[-1]          # one-step-ahead forecast for index t
-        alpha_t[t] = best_alpha                # store chosen alpha
-        u_t[t] = y[t] - yhat_t[t]              # realized one-step-ahead error
+        yhat_t[t+1] = yhat_sub_best[-1]     # forecast for index t+1
+        alpha_t[t+1] = best_alpha
+        u_t[t+1] = y[t+1] - yhat_t[t+1]
 
     return alpha_t, yhat_t, u_t
-
 
 
 # =============================
@@ -342,23 +395,9 @@ def holt_fitted_forecast_series(y, alpha, beta):
     return F                              # Return fitted forecasts
 
 
-def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
-    """
-    Expanding-window Holt (double exponential smoothing) with re-estimated alpha/beta at each step.
 
-    Returns
-    -------
-    alpha_t : np.ndarray
-        Estimated alpha for each time index (NaN where not defined).
-    beta_t : np.ndarray
-        Estimated beta for each time index (NaN where not defined).
-    yhat_t : np.ndarray
-        One-step-ahead forecast series (NaN where not defined).
-    u_t : np.ndarray
-        One-step-ahead forecast errors y - yhat (NaN where not defined).
-    loss_t : np.ndarray
-        Best loss value achieved at each time index (NaN where not defined).
-    """
+
+def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
     y = np.asarray(y, dtype=float)
     T = len(y)
 
@@ -372,8 +411,8 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
 
     # Need enough data to initialize Holt inside holt_fitted_forecast_series (uses y[0] and y[1])
     # and to produce a one-step-ahead forecast for index t (so t must be at least 2).
-    for t in range(2, T):
-        y_sub = y[:t+1]  
+    for t in range(2, T - 1):
+        y_sub = y[:t+2]  
 
         best_alpha = None
         best_beta = None
@@ -407,14 +446,89 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
 
         # One-step-ahead forecast for index t using best (alpha, beta) fitted on y[:t]
         F_best = holt_fitted_forecast_series(y_sub, best_alpha, best_beta)
-        yhat_t[t] = F_best[-1]
-        u_t[t] = y[t] - yhat_t[t]
+        yhat_t[t+1] = F_best[-1]
+        u_t[t+1] = y[t] - yhat_t[t]
 
-        alpha_t[t] = best_alpha
-        beta_t[t] = best_beta
-        loss_t[t] = best_loss
+        alpha_t[t+1] = best_alpha
+        beta_t[t+1] = best_beta
+        loss_t[t+1] = best_loss
 
     return alpha_t, beta_t, yhat_t, u_t, loss_t
+
+
+# def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
+#     """
+#     Expanding-window Holt (double exponential smoothing) with re-estimated alpha/beta at each step.
+
+#     Returns
+#     -------
+#     alpha_t : np.ndarray
+#         Estimated alpha for each time index (NaN where not defined).
+#     beta_t : np.ndarray
+#         Estimated beta for each time index (NaN where not defined).
+#     yhat_t : np.ndarray
+#         One-step-ahead forecast series (NaN where not defined).
+#     u_t : np.ndarray
+#         One-step-ahead forecast errors y - yhat (NaN where not defined).
+#     loss_t : np.ndarray
+#         Best loss value achieved at each time index (NaN where not defined).
+#     """
+#     y = np.asarray(y, dtype=float)
+#     T = len(y)
+
+#     grid = np.linspace(eps, 1.0 - eps, grid_n)
+
+#     alpha_t = np.full(T, np.nan)
+#     beta_t = np.full(T, np.nan)
+#     yhat_t = np.full(T, np.nan)
+#     u_t = np.full(T, np.nan)
+#     loss_t = np.full(T, np.nan)
+
+#     # Need enough data to initialize Holt inside holt_fitted_forecast_series (uses y[0] and y[1])
+#     # and to produce a one-step-ahead forecast for index t (so t must be at least 2).
+#     for t in range(2, T):
+#         y_sub = y[:t+1]  
+
+#         best_alpha = None
+#         best_beta = None
+#         best_loss = np.inf
+
+#         for alpha in grid:
+#             for beta in grid:
+#                 F = holt_fitted_forecast_series(y_sub, alpha, beta)
+
+#                 y_eval = y_sub[1:]
+#                 F_eval = F[1:]
+#                 u = y_eval - F_eval
+
+#                 if criterion == "ME":
+#                     loss = float(np.mean(u))
+#                 elif criterion == "MAE":
+#                     loss = float(np.mean(np.abs(u)))
+#                 elif criterion == "MAPE":
+#                     loss = float(np.mean(100.0 * np.abs(u) / np.abs(y_eval)))
+#                 elif criterion == "MSE":
+#                     loss = float(np.mean(u ** 2))
+#                 elif criterion == "SSE":
+#                     loss = float(np.sum(u ** 2))
+#                 else:
+#                     raise ValueError("criterion must be one of: 'ME', 'MAE', 'MAPE', 'MSE', 'SSE'")
+
+#                 if loss < best_loss:
+#                     best_alpha = alpha
+#                     best_beta = beta
+#                     best_loss = loss
+
+#         # One-step-ahead forecast for index t using best (alpha, beta) fitted on y[:t]
+#         F_best = holt_fitted_forecast_series(y_sub, best_alpha, best_beta)
+#         yhat_t[t] = F_best[-1]
+#         u_t[t] = y[t] - yhat_t[t]
+
+#         alpha_t[t] = best_alpha
+#         beta_t[t] = best_beta
+#         loss_t[t] = best_loss
+
+#     return alpha_t, beta_t, yhat_t, u_t, loss_t
 
 
 
