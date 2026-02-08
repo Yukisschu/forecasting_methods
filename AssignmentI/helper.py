@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 # Running_average
 # =============================
 
+
 def running_average(y):
     """Compute the running (cumulative) average of a sequence."""
     running_avg = []                    # List to store running averages
@@ -34,6 +35,8 @@ def running_average_forecast(y):
 # =============================
 # Random walk
 # =============================
+
+
 def lag_forecast(y):
     """Random walk (lag-1) forecast: Ŷ_t = Y_{t-1}."""
     n = len(y)                     # Length of series
@@ -43,7 +46,6 @@ def lag_forecast(y):
         yhat[t] = float(y[t - 1])  # Forecast equals previous value
 
     return yhat                         # Return forecasts
-
 
 
 # =============================
@@ -89,7 +91,7 @@ def exp_smoothing_forecast(y, alpha):
 
 #     # Need at least 2 points to define one-step-ahead errors in this convention
 #     for t in range(2, T):
-#         y_sub = y[:t]  
+#         y_sub = y[:t]
 
 #         best_alpha = None
 #         best_val = np.inf
@@ -119,7 +121,7 @@ def exp_smoothing_forecast(y, alpha):
 
 #         yhat_next = best_alpha * y_sub[-1] + \
 #             (1 - best_alpha) * yhat_sub_best[-1]
-        
+
 #         print(
 #             f"t={t}, best alpha={best_alpha:.4f}, "
 #             f"y_sub={y_sub}, "
@@ -131,7 +133,6 @@ def exp_smoothing_forecast(y, alpha):
 #         u_t[t] = y[t] - yhat_t[t]              # realized one-step-ahead error
 
 #     return alpha_t, yhat_t, u_t
-
 
 
 # def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps=1e-4):
@@ -162,7 +163,7 @@ def exp_smoothing_forecast(y, alpha):
 
 #     # Need at least 2 points to define one-step-ahead errors in this convention
 #     for t in range(2, T):
-#         y_sub = y[:t+1]  
+#         y_sub = y[:t+1]
 
 #         best_alpha = None
 #         best_val = np.inf
@@ -189,7 +190,7 @@ def exp_smoothing_forecast(y, alpha):
 
 #         # Forecast y[t] using the best alpha estimated from y[:t]
 #         yhat_sub_best = exp_smoothing_forecast(y_sub, best_alpha)
-        
+
 #         # print(
 #         #     f"t={t}, best alpha={best_alpha:.4f}, "
 #         #     f"y_sub={y_sub}, "
@@ -210,11 +211,11 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
     alphas = np.linspace(eps, 1.0, grid_size)
 
     alpha_t = np.full(T, np.nan)  # store alpha used to forecast y[t]
-    yhat_t  = np.full(T, np.nan)  # yhat_t[t] forecasts y[t]
-    u_t     = np.full(T, np.nan)  # u_t[t] = y[t] - yhat_t[t]
+    yhat_t = np.full(T, np.nan)  # yhat_t[t] forecasts y[t]
+    u_t = np.full(T, np.nan)  # u_t[t] = y[t] - yhat_t[t]
 
     # At time t, estimate alpha from y[:t+1], then forecast y[t+1]
-    for t in range(2, T - 1):   
+    for t in range(2, T - 1):
         y_sub = y[:t+1]         # data available up to time t
 
         best_alpha = None
@@ -234,14 +235,15 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
             elif criterion == "MSE":
                 val = m["MSE"]
             else:
-                raise ValueError("criterion must be one of: 'ME', 'MAE', 'MAPE', 'MSE'")
+                raise ValueError(
+                    "criterion must be one of: 'ME', 'MAE', 'MAPE', 'MSE'")
 
             if val < best_val:
                 best_val = val
                 best_alpha = a
 
         # Now forecast y[t+1] using alpha estimated from y[:t+1]
-        y_sub_t = y[:t+2]  # exclude y[t+2] 
+        y_sub_t = y[:t+2]  # exclude y[t+2]
         yhat_sub_best = exp_smoothing_forecast(y_sub_t, best_alpha)
 
         # print(
@@ -264,16 +266,22 @@ def ar1_expanding_ols_forecast(y):
     """AR(1) expanding-window OLS one-step-ahead forecast."""
     ar1 = np.empty_like(y, dtype=float)   # Allocate forecast array
     ar1[:] = np.nan                       # Initialize with NaNs
+    c = np.full_like(y, np.nan, dtype=float)
+    phi = np.full_like(y, np.nan, dtype=float)
 
-    for t in range(2, len(y)):            # Start when enough data exists
+    for t in range(3, len(y)):            # Start when enough data exists
         y_dep = y[1:t]                    # Dependent variable
         x_lag = y[0:t-1]                  # Lagged regressor
-        X = np.column_stack([np.ones_like(x_lag), x_lag])  # Design matrix with intercept
+        # Design matrix with intercept
+        X = np.column_stack([np.ones_like(x_lag), x_lag])
         beta, _, _, _ = np.linalg.lstsq(X, y_dep, rcond=None)  # OLS
         c_hat, phi_hat = beta             # Extract coefficients
+        c[t] = c_hat
+        phi[t] = phi_hat
         ar1[t] = c_hat + phi_hat * y[t - 1]  # Forecast
 
-    return ar1                            # Return AR(1) forecasts
+    # Return AR(1) forecasts
+    return ar1, c, phi
 
 
 def running_trend_forecast(y):
@@ -290,7 +298,7 @@ def running_trend_forecast(y):
         j = np.arange(1, n + 1)           # Time index
         y_past = y[:n]                    # Past observations
 
-        j_bar = j.mean()                  # Mean of time index 
+        j_bar = j.mean()                  # Mean of time index
         y_bar = y_past.mean()             # Mean of data
 
         denom = np.sum((j - j_bar) ** 2)  # Denominator for slope
@@ -325,7 +333,7 @@ def random_walk_plus_drift_forecast(y):
 
     rw_drift = np.full(T, np.nan)        # Allocate RW+drift forecast
     for t in range(2, T):                # Loop over valid indices
-        rw_drift[t] = y[t-1] + mu_hat[t] # Add drift to lagged value
+        rw_drift[t] = y[t-1] + mu_hat[t]  # Add drift to lagged value
 
     return rw, rw_drift, mu_hat          # Return forecasts and drift
 
@@ -353,6 +361,7 @@ def holt_forecast_from_series(y, alpha, beta):
 
     return L + G                          # Return forecast
 
+
 def holt_observation_weights(alpha, beta, max_lag=40, burn=200):
     """
     lag 0 corresponds to Y_{t-1} (forecast formed using data up to t-1),
@@ -368,8 +377,9 @@ def holt_observation_weights(alpha, beta, max_lag=40, burn=200):
     for k in range(max_lag + 1):
         y = np.zeros(T)
         y[(t - 1) - k] = 1.0  # impulse at Y_{t-1-k}
-        weights[k] = holt_forecast_from_series(y, alpha, beta)  # forecast for time t
-    
+        weights[k] = holt_forecast_from_series(
+            y, alpha, beta)  # forecast for time t
+
     return weights
 
 
@@ -395,8 +405,6 @@ def holt_fitted_forecast_series(y, alpha, beta):
     return F                              # Return fitted forecasts
 
 
-
-
 def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
     y = np.asarray(y, dtype=float)
     T = len(y)
@@ -412,7 +420,8 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
     # Need enough data to initialize Holt inside holt_fitted_forecast_series (uses y[0] and y[1])
     # and to produce a one-step-ahead forecast for index t (so t must be at least 2).
     for t in range(2, T - 1):
-        y_sub = y[:t+2]  
+        # y_sub = y[:t+2]
+        y_sub = y[:t+1]
 
         best_alpha = None
         best_beta = None
@@ -422,8 +431,10 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
             for beta in grid:
                 F = holt_fitted_forecast_series(y_sub, alpha, beta)
 
-                y_eval = y_sub[1:]
-                F_eval = F[1:]
+                # y_eval = y_sub[1:]
+                # F_eval = F[1:]
+                y_eval = y_sub[2:]
+                F_eval = F[2:]
                 u = y_eval - F_eval
 
                 if criterion == "ME":
@@ -437,7 +448,8 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
                 elif criterion == "SSE":
                     loss = float(np.sum(u ** 2))
                 else:
-                    raise ValueError("criterion must be one of: 'ME', 'MAE', 'MAPE', 'MSE', 'SSE'")
+                    raise ValueError(
+                        "criterion must be one of: 'ME', 'MAE', 'MAPE', 'MSE', 'SSE'")
 
                 if loss < best_loss:
                     best_alpha = alpha
@@ -445,9 +457,11 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
                     best_loss = loss
 
         # One-step-ahead forecast for index t using best (alpha, beta) fitted on y[:t]
-        F_best = holt_fitted_forecast_series(y_sub, best_alpha, best_beta)
+        y_sub_t = y[:t+2]
+        F_best = holt_fitted_forecast_series(y_sub_t, best_alpha, best_beta)
         yhat_t[t+1] = F_best[-1]
-        u_t[t+1] = y[t] - yhat_t[t]
+        # u_t[t+1] = y[t] - yhat_t[t]
+        u_t[t+1] = y[t+1] - yhat_t[t+1]
 
         alpha_t[t+1] = best_alpha
         beta_t[t+1] = best_beta
@@ -487,7 +501,7 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
 #     # Need enough data to initialize Holt inside holt_fitted_forecast_series (uses y[0] and y[1])
 #     # and to produce a one-step-ahead forecast for index t (so t must be at least 2).
 #     for t in range(2, T):
-#         y_sub = y[:t+1]  
+#         y_sub = y[:t+1]
 
 #         best_alpha = None
 #         best_beta = None
@@ -529,7 +543,6 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
 #         loss_t[t] = best_loss
 
 #     return alpha_t, beta_t, yhat_t, u_t, loss_t
-
 
 
 # =============================
@@ -581,9 +594,11 @@ def seasonal_random_walk_with_drift_forecast(y, S):
     # For drift we need at least one seasonal difference, so start at t = S+1 (0-based)
     for t in range(S + 1, T):
         # estimate c_{t-1} using seasonal differences up to time t-1
-        diffs = y[S:t] - y[:t - S]          # (Y_S - Y_0), ..., (Y_{t-1} - Y_{t-1-S})
+        # (Y_S - Y_0), ..., (Y_{t-1} - Y_{t-1-S})
+        diffs = y[S:t] - y[:t - S]
         c_tm1 = diffs.mean()                # c_{t-1}
-        c_hat[t] = c_tm1                    # store (aligned with forecast time index)
+        # store (aligned with forecast time index)
+        c_hat[t] = c_tm1
         yhat[t] = c_tm1 + y[t - S]          # forecast y[t]
 
     return yhat, c_hat
@@ -646,8 +661,6 @@ def seasonal_random_walk_with_drift_forecast(y, S):
 #     return yhat, a_hat, b_hat, g_hat
 
 
-
-
 def running_seasonal_regression_forecast(y, S):
     """
     Running Seasonal Regression using:
@@ -671,7 +684,7 @@ def running_seasonal_regression_forecast(y, S):
         season = t_index_0based % S          # 0..S-1
         d = np.zeros(S - 1, dtype=float)
         if season == S - 1:
-            d[:] = -1.0                      # last season encoding 
+            d[:] = -1.0                      # last season encoding
         else:
             d[season] = 1.0                  # one-hot
         return np.concatenate(([1.0, t1], d))
@@ -682,7 +695,6 @@ def running_seasonal_regression_forecast(y, S):
 
     # We need at least k observations to invert A stably.
     # We'll start forecasts at t = k (0-based), i.e., using data up to t-1.
-    # (This matches your "S+1" idea: k = S+1)
     for t in range(T):
         # Forecast y[t] using δ̂ built from past data (0..t-1)
         if t >= k and np.linalg.matrix_rank(A) == k:
@@ -714,7 +726,8 @@ def running_seasonal_regression_forecast(y, S):
 def _hw_init(y, S, multiplicative):
     y = np.asarray(y, dtype=float)
     if len(y) < 2 * S:
-        raise ValueError("Need at least 2 full seasons (2S observations) for initialization.")
+        raise ValueError(
+            "Need at least 2 full seasons (2S observations) for initialization.")
 
     L_S = np.mean(y[:S])
     next_season_mean = np.mean(y[S:2 * S])
@@ -755,7 +768,8 @@ def holt_winters_additive_forecast(y, S, alpha, beta, gamma):
         yhat[t] = (L_t[t - 1] + G_t[t - 1]) + H_t[t - S]
 
         # updates using y[t]
-        L_new = alpha * (y[t] - H_t[t - S]) + (1 - alpha) * (L_t[t - 1] + G_t[t - 1])
+        L_new = alpha * (y[t] - H_t[t - S]) + (1 - alpha) * \
+            (L_t[t - 1] + G_t[t - 1])
         G_new = beta * (L_new - L_t[t - 1]) + (1 - beta) * G_t[t - 1]
         H_new = gamma * (y[t] - L_new) + (1 - gamma) * H_t[t - S]
 
@@ -792,7 +806,8 @@ def holt_winters_multiplicative_forecast(y, S, alpha, beta, gamma):
         yhat[t] = (L_t[t - 1] + G_t[t - 1]) * H_t[t - S]
 
         # updates using y[t]
-        L_new = alpha * (y[t] / H_t[t - S]) + (1 - alpha) * (L_t[t - 1] + G_t[t - 1])
+        L_new = alpha * (y[t] / H_t[t - S]) + (1 - alpha) * \
+            (L_t[t - 1] + G_t[t - 1])
         G_new = beta * (L_new - L_t[t - 1]) + (1 - beta) * G_t[t - 1]
         H_new = gamma * (y[t] / L_new) + (1 - gamma) * H_t[t - S]
 
@@ -913,11 +928,11 @@ def estimate_alpha_beta_gamma_seasonal_hw(
     grid = np.linspace(eps, 1.0 - eps, grid_n)
 
     alpha_t = np.full(T, np.nan)
-    beta_t  = np.full(T, np.nan)
+    beta_t = np.full(T, np.nan)
     gamma_t = np.full(T, np.nan)
-    yhat_t  = np.full(T, np.nan)
-    u_t     = np.full(T, np.nan)
-    loss_t  = np.full(T, np.nan)
+    yhat_t = np.full(T, np.nan)
+    u_t = np.full(T, np.nan)
+    loss_t = np.full(T, np.nan)
 
     # Need at least 2 full seasons for _hw_init in helper.py => len(y_sub) >= 2S
     # We store at t+1, so require t+1 <= T-1 => t <= T-2
@@ -932,11 +947,14 @@ def estimate_alpha_beta_gamma_seasonal_hw(
             for b in grid:
                 for g in grid:
                     if multiplicative:
-                        F, _, _, _ = holt_winters_multiplicative_forecast(y_sub, S, a, b, g)
+                        F, _, _, _ = holt_winters_multiplicative_forecast(
+                            y_sub, S, a, b, g)
                     else:
-                        F, _, _, _ = holt_winters_additive_forecast(y_sub, S, a, b, g)
+                        F, _, _, _ = holt_winters_additive_forecast(
+                            y_sub, S, a, b, g)
 
                     # Evaluate fitted one-step-ahead residuals inside y_sub
+                    # idx = np.arange(S, len(y_sub))
                     idx = np.arange(S, len(y_sub))
                     resid = y_sub[idx] - F[idx]
 
@@ -945,14 +963,16 @@ def estimate_alpha_beta_gamma_seasonal_hw(
                     elif criterion == "MAE":
                         loss = float(np.mean(np.abs(resid)))
                     elif criterion == "MAPE":
-                        denom = np.where(y_sub[idx] == 0, np.nan, np.abs(y_sub[idx]))
+                        denom = np.where(
+                            y_sub[idx] == 0, np.nan, np.abs(y_sub[idx]))
                         loss = float(np.nanmean(100.0 * np.abs(resid) / denom))
                     elif criterion == "MSE":
                         loss = float(np.mean(resid ** 2))
                     elif criterion == "SSE":
                         loss = float(np.sum(resid ** 2))
                     else:
-                        raise ValueError("criterion must be one of: 'ME','MAE','MAPE','MSE','SSE'")
+                        raise ValueError(
+                            "criterion must be one of: 'ME','MAE','MAPE','MSE','SSE'")
 
                     if loss < best_loss:
                         best_loss = loss
@@ -980,9 +1000,9 @@ def estimate_alpha_beta_gamma_seasonal_hw(
         u_t[t+1] = y[t+1] - yhat_t[t+1]
 
         alpha_t[t+1] = float(best_a)
-        beta_t[t+1]  = float(best_b)
+        beta_t[t+1] = float(best_b)
         gamma_t[t+1] = float(best_g)
-        loss_t[t+1]  = float(best_loss)
+        loss_t[t+1] = float(best_loss)
 
     return alpha_t, beta_t, gamma_t, yhat_t, u_t, loss_t
 
@@ -1027,15 +1047,15 @@ def metrics(y_true, y_hat):
 
 def metrics_row(y, yhat, start_idx):
     """Return metrics dict for sliced series starting at start_idx."""
-    me, mae, mape, mse = metrics(y[start_idx:], yhat[start_idx:])  # Compute metrics
+    me, mae, mape, mse = metrics(
+        y[start_idx:], yhat[start_idx:])  # Compute metrics
     return {"ME": me, "MAE": mae, "MAPE": mape, "MSE": mse}         # Return dict
-
 
 
 def metrics_last_k(y, u, k):
     """
     Compute forecast error metrics over the last k observations.
- 
+
     """
     # Extract the last k residuals
     u_last = u[-k:]
