@@ -215,7 +215,7 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
     u_t = np.full(T, np.nan)  # u_t[t] = y[t] - yhat_t[t]
 
     # At time t, estimate alpha from y[:t+1], then forecast y[t+1]
-    for t in range(2, T - 1):
+    for t in range(1, T - 1):
         y_sub = y[:t+1]         # data available up to time t
 
         best_alpha = None
@@ -403,6 +403,8 @@ def holt_fitted_forecast_series(y, alpha, beta):
         L = alpha * y[t] + (1 - alpha) * (L + G)  # Update level
         G = beta * (L - L_prev) + (1 - beta) * G  # Update trend
 
+    F[0] = np.nan
+    F[1] = np.nan
     return F                              # Return fitted forecasts
 
 
