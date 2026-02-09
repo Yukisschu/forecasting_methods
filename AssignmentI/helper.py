@@ -224,6 +224,7 @@ def estimate_alpha_exponential_smoothing(y, criterion="MSE", grid_size=2000, eps
         for a in alphas:
             yhat_sub = exp_smoothing_forecast(y_sub, a)
             u_sub = forecast_errors(y_sub, yhat_sub)
+            # skip the first observation
             m = forecast_metrics(u_sub, y_sub, tau=2)
 
             if criterion == "ME":
@@ -409,7 +410,7 @@ def estimate_alpha_beta_holt_winters(y, criterion="SSE", grid_n=201, eps=1e-3):
     y = np.asarray(y, dtype=float)
     T = len(y)
 
-    grid = np.linspace(eps, 1.0 - eps, grid_n)
+    grid = np.linspace(eps, 1.0, grid_n)
 
     alpha_t = np.full(T, np.nan)
     beta_t = np.full(T, np.nan)
