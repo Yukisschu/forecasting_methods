@@ -1,0 +1,57 @@
+Reported variances for the
+
+Local Level Model (LL)
+var_eps,var_eta
+
+Local Linear Trend Model (LLT)
+var_eps,var_eta,var_zeta
+
+The variance values for the following time series are:
+
+Gasoline1
+LL 5.7, 1.5
+LLT 6.1, 1.7, 0.25
+
+Gasoline2
+LL 3.5, 10.0
+LLT 3.0, 10.0, 0.2
+
+Bicycle
+LL 0.9, 5.7
+LLT 3.5, 0.4, 0.15
+
+Var1
+LL 3.0, 2.4
+LLT 3.5, 0.9, 0.2
+
+Var2
+LL 0.7, 4.0
+LLT 1.5, 2.0, 0.05
+
+Var3
+LL 2.0, 2.35
+LLT 2.0, 0.3, 1.0
+
+Var4
+LL 1.2, 1.5
+LLT 1.2, 1.4, 0.01
+
+Var5
+LL 1.4, 1.3
+LLT 1.5, 1, 0.02
+
+Var6
+LL 1.3, 2.3
+LLT 1.0, 2.7, 0.06
+
+Var7
+LL 1.9, 1.2
+LLT 2.2, 0.1, 0.1
+
+Var8
+LL 0.5, 4.0
+LLT 0.7, 3.5, 0.05
+
+Var9
+LL 0.8, 3.5
+LLT 1.0, 2.5, 0.1
